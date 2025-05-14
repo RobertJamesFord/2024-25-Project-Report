@@ -1,0 +1,117 @@
+#---
+
+Title: "ERR10036884-892 analysis"
+#9 Samples of VCaP Cells, 3 Contrl samples, 2 stes of 3 samples with MAT2A gene knockout via shorthairpin
+
+#---
+
+#NOTE: Recommended to clean environment throughout script
+
+#Install packages and load libraries 
+
+install.packages("RColorBrewer", method = "wininet")
+install.packages("pheatmap", method = "wininet")
+install.packages("ashr", method = "wininet")
+
+#Bioconductor
+install.packages("BiocManager", method = "wininet")
+
+#Core Bioconductor
+BiocManager::install(method = "wininet")
+
+#BioC packages 
+BiocManager::install("DESeq2", method = "wininet")
+BiocManager::install("EnhancedVolcano", method = "wininet")
+BiocManager::install("clusterProfiler", method = "wininet")
+BiocManager::install("enrichplot", method = "wininet")
+BiocManager::install("org.Hs.eg.db", method = "wininet")
+BiocManager::install("msigdbr", method = "wininet")
+BiocManager::install("enrichR", method = "wininet")
+BiocManager::install("limma", method = "wininet")
+
+#errors with this package, try running the msig df making line and it will ask to install, option Yes and it works
+install.packages('msigdbdf', repos = 'https://igordot.r-universe.dev')
+
+library(RColorBrewer)
+library(pheatmap)
+library(BiocManager)
+library(DESeq2)
+library(EnhancedVolcano)
+library(enrichplot)
+library(tidyr)
+library(enrichR)
+library(ggplot2)
+library(org.Hs.eg.db)
+library(msigdbr)
+library(limma)
+
+#Expermient 1: Knockout of the MAT2A gene in ERG fusion-positive VCaP cells using short-hairpin RNA
+
+#NOTE: Check second /_____/ section of change directory path. ie - Laptop vs uni computer
+
+
+#Setting directory to relevant counts folder
+setwd("C:/Users/w22012396/OneDrive - Northumbria University - Production Azure AD/Documents/UNI Y3/Diss project/Data/Counts files/ERR884-892")
+
+#Files in folder
+VCaP.Exp.Files <- list.files(pattern = "-counts.txt")
+#Renaming files into respective names for the experiment
+ID.VCaP.Exp.Files <-{
+  ID.VCaP.Exp.Files <- gsub("-counts.txt"," " ,VCaP.Exp.Files)
+  ID.VCaP.Exp.Files <-gsub("ERR10036884", "VCaP.Ctrl1",ID.VCaP.Exp.Files)
+  ID.VCaP.Exp.Files <-gsub("ERR10036885", "VCaP.Ctrl2",ID.VCaP.Exp.Files)
+  ID.VCaP.Exp.Files <-gsub("ERR10036886", "VCaP.Ctrl3",ID.VCaP.Exp.Files)
+  ID.VCaP.Exp.Files <-gsub("ERR10036887", "VCaP.Sh1.1",ID.VCaP.Exp.Files)
+  ID.VCaP.Exp.Files <-gsub("ERR10036888", "VCaP.Sh1.2",ID.VCaP.Exp.Files)
+  ID.VCaP.Exp.Files <-gsub("ERR10036889", "VCaP.Sh1.3",ID.VCaP.Exp.Files)
+  ID.VCaP.Exp.Files <-gsub("ERR10036890", "VCaP.Sh2.1",ID.VCaP.Exp.Files)
+  ID.VCaP.Exp.Files <-gsub("ERR10036891", "VCaP.Sh2.2",ID.VCaP.Exp.Files)
+  ID.VCaP.Exp.Files <-gsub("ERR10036892", "VCaP.Sh2.3",ID.VCaP.Exp.Files)
+  }
+ID.VCaP.Exp.Files
+#Celltype vector creation
+CellType <- c(rep("VCaP", 9,))
+#Condition vector creation NOTE: Condition is the kd of MAT2A in VCaP cells repeated twice (Sh1/2) for three samples each.
+Condition <- c("Ctrl", "Ctrl", "Ctrl", "Sh1kd", "Sh1kd", "Sh1kd", "Sh2kd", "Sh2kd", "Sh2kd")
+#Combination of condition and cell type using the paste0 function.
+condCType <- paste0(CellType, Condition)
+#Adding all of the above into a data frama, ordered in which they are entered in the dataframe function.
+Sample.table.1 <- DataFrame(ID.VCaP.Exp.Files, VCaP.Exp.Files, Condition)
+#Summarised Experiment
+se <- DESeqDataSetFromHTSeqCount(Sample.table.1,design = ~Condition )
+#Removal of the .numbers on the Gene Ids to make compatible with external gene ID data-sets.
+rownames(se) <- gsub("\\.\\d+$", "", rownames(se), perl = TRUE)
+#Transformation of the Summarised experiment into a DeSeq dataset
+DESeq.ds <- DESeqDataSet(se, design = ~Condition)
+DESeq.ds$Condition <- as.factor(DESeq.ds$Condition)
+DESeq.ds$Condition <- relevel(DESeq.ds$Condition, ref = "Ctrl")
+#Main DESeq method
+DESeq.ds <-DESeq(DESeq.ds)
+#Quality control checks, using rlog to normally distribute the data.
+rld <- rlog(DESeq.ds, blind = TRUE)
+#Principal component analysis (PCA) plot
+PCAdata <- plotPCA(rld, intgroup=c("Condition"), returnData = TRUE)
+#write.csv(PCAdata, file = "MAT2Akd PCA data.csv", quote = FALSE, row.names = FALSE)
+
+plotPCA(rld, intgroup=c("Condition"))+ 
+  theme(axis.text.y = element_text(size = 14, face = "bold"),
+        axis.text.x = element_text(size = 14, face = "bold"),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16),
+        legend.key.size = unit(1, "cm")) + 
+  labs(color = "Sample Group")
+
+#HeatmAp making:
+
+#Measure sample distances
+sampleDists <- dist(t(assay(rld)))
+sampleDists
+#Convert to matrix
+sampleDistMatrix <- as.matrix(sampleDists)
+#Label matrix
+rownames(sampleDistMatrix) <- paste(rld$Condition)
+colnames(sampleDistMatrix) <- paste(rld$Condition)
+#Colour for plotting
+colors <- colorRampPalette(c("red", "white", "blue")  )(100)
+#pheatmap function
+pheatmap(sampleDistMatrix, Col=colors, cellwidth = 16, cellheight = 25)
