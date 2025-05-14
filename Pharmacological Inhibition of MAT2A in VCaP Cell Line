@@ -1,0 +1,474 @@
+#---
+
+Title: "ERR10801524-535 analysis"
+#9 Samples of VCaP Ceels, 3 Contrl samples, 3Treated with PF-9366 and 3 with AG-270 (MAT2A inhibitors)
+
+#---
+
+#NOTE: Recommended to clean environment throughout script
+
+#Install packages and load libraries 
+
+install.packages("RColorBrewer", method = "wininet")
+install.packages("pheatmap", method = "wininet")
+install.packages("ashr", method = "wininet")
+
+#Bioconductor
+install.packages("BiocManager", method = "wininet")
+
+#Core Bioconductor
+BiocManager::install(method = "wininet")
+
+#BioC packages 
+BiocManager::install("DESeq2", method = "wininet")
+BiocManager::install("EnhancedVolcano", method = "wininet")
+BiocManager::install("clusterProfiler", method = "wininet")
+BiocManager::install("enrichplot", method = "wininet")
+BiocManager::install("org.Hs.eg.db", method = "wininet")
+BiocManager::install("msigdbr", method = "wininet")
+BiocManager::install("enrichR", method = "wininet")
+BiocManager::install("limma", method = "wininet")
+BiocManager::install("ggplot2", method = "wininet")
+
+#errors with this package, try running the msig df making line and it will ask to install, option Yes and it works
+install.packages('msigdbdf', repos = 'https://igordot.r-universe.dev')
+
+library(clusterProfiler)
+library(RColorBrewer)
+library(pheatmap)
+library(BiocManager)
+library(DESeq2)
+library(EnhancedVolcano)
+library(enrichplot)
+library(tidyr)
+library(enrichR)
+library(ggplot2)
+library(org.Hs.eg.db)
+library(msigdbr)
+library(limma)
+
+#SetWD
+setwd("C:/Users/w22012396/OneDrive - Northumbria University - Production Azure AD/Documents/UNI Y3/Diss project/Data/Counts files/ERR524-535")
+#Files in folder
+VCaP.treated.Exp.Files <- list.files(pattern = "-counts.txt")
+#Renaming files into respective names for the experiment
+ID.VCaP.treated.Exp.Files <-{
+  ID.VCaP.treated.Exp.Files <- gsub("-counts.txt"," " ,VCaP.treated.Exp.Files)
+  ID.VCaP.treated.Exp.Files <-gsub("ERR10801524", "AG-270_1",ID.VCaP.treated.Exp.Files)
+  ID.VCaP.treated.Exp.Files <-gsub("ERR10801525", "AG-270_2",ID.VCaP.treated.Exp.Files)
+  ID.VCaP.treated.Exp.Files <-gsub("ERR10801526", "AG-270_3",ID.VCaP.treated.Exp.Files)
+  ID.VCaP.treated.Exp.Files <-gsub("ERR10801527", "AG-270_4",ID.VCaP.treated.Exp.Files)
+  ID.VCaP.treated.Exp.Files <-gsub("ERR10801528", "CTRL_1",ID.VCaP.treated.Exp.Files)
+  ID.VCaP.treated.Exp.Files <-gsub("ERR10801529", "CTRL_2",ID.VCaP.treated.Exp.Files)
+  ID.VCaP.treated.Exp.Files <-gsub("ERR10801530", "CTRL_3",ID.VCaP.treated.Exp.Files)
+  ID.VCaP.treated.Exp.Files <-gsub("ERR10801531", "CTRL_4",ID.VCaP.treated.Exp.Files)
+  ID.VCaP.treated.Exp.Files <-gsub("ERR10801532", "PF-9366_1",ID.VCaP.treated.Exp.Files)
+  ID.VCaP.treated.Exp.Files <-gsub("ERR10801533", "PF-9366_2",ID.VCaP.treated.Exp.Files)
+  ID.VCaP.treated.Exp.Files <-gsub("ERR10801534", "PF-9366_3",ID.VCaP.treated.Exp.Files)
+  ID.VCaP.treated.Exp.Files <-gsub("ERR10801535", "PF-9366_4",ID.VCaP.treated.Exp.Files)
+}
+#Celltype vector creation
+CellType <- c(rep("VCaP.", 12,))
+#Condition vector creation NOTE: Condition is the kd of MAT2A in VCaP cells repeated twice (Sh1/2) for three samples each.
+Condition <- c("AG-270", "AG-270", "AG-270", "AG-270", "CTRL", "CTRL", "CTRL", "CTRL", "PF-9366", "PF-9366", "PF-9366", "PF-9366")
+#Combination of both variables??? ASK MATT?
+condCType <- paste0(CellType, Condition)
+#Data frame
+Sample.table.1 <- DataFrame(ID.VCaP.treated.Exp.Files, VCaP.treated.Exp.Files, Condition, CellType)
+#Summarised Experiment
+se <- DESeqDataSetFromHTSeqCount(Sample.table.1, design = ~Condition)
+#Removal of the .numbers on the Gene Ids to make compatitible with external gene ID datasets
+rownames(se) <- gsub("\\.\\d+$", "", rownames(se), perl = TRUE)
+#Transformation of the Summarised experiment into a DeSeq dataset
+DESeq.ds <- DESeqDataSet(se, design = ~Condition)
+DESeq.ds$Condition <- factor(DESeq.ds$Condition)
+DESeq.ds$Condition <- relevel(DESeq.ds$Condition, ref = "CTRL")
+#Main DESeq method
+DESeq.ds <-DESeq(DESeq.ds)
+#Quality control checks, using rlog to normally distribute the data.
+rld <- rlog(DESeq.ds, blind = TRUE)
+
+#Principal component analysis plot
+plotPCA(rld, intgroup=c("Condition")) + 
+  theme(axis.text.y = element_text(size = 14, face = "bold"),
+        axis.text.x = element_text(size = 14, face = "bold"),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16),
+        legend.key.size = unit(1, "cm")) + 
+  labs(color = "Sample Group")
+
+#Heatmap of samples
+sampleDists <- dist(t(assay(rld)))
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- paste(rld$Condition)
+colnames(sampleDistMatrix) <- paste(rld$Condition)
+colors <- colorRampPalette(c("#045a8d","#74a9cf", "white","#fb6a4a", "#a50f15")  )(100)
+pheatmap(sampleDistMatrix, Col=colors, cellwidth = 20, cellheight = 25)
+
+#Differential Gene Expression 
+resAG <- results(DESeq.ds, contrast = c("Condition", "AG-270", "CTRL"))
+resPF <- results(DESeq.ds, contrast = c("Condition", "PF-9366", "CTRL"))
+
+#Making of anno ---
+gencodev47 <- import("gencode.v47.primary_assembly.basic.annotation.gtf.gz")
+gencodev47 <- gencodev47[gencodev47$type == "gene", ]
+gencodev47$gene_id <- gsub("\\.\\d+$", "", gencodev47$gene_id, perl = TRUE)
+anno <- gencodev47[, c("gene_id", "gene_name", "gene_type")]
+rm(gencodev47)
+
+#BLOCK---Making significant results by merging with anno and filtering L2FC >=1 and PValue <=0.05
+resPF_2 <- resPF[!is.na(resPF$padj), ]
+resPF_2 <- as.data.frame(resPF_2)
+resPF_2 <- cbind(rownames(resPF_2), resPF_2)
+rownames(resPF_2)<-NULL
+colnames(resPF_2)[1]<-"gene_id"
+resPF_2 <- merge(resPF_2, anno, by = "gene_id", all = TRUE)
+resPF_2 <- resPF_2[order(abs(resPF_2$log2FoldChange), decreasing = TRUE), ]
+resPF.sig <- resPF_2[abs(resPF_2$log2FoldChange) >= 1, ]
+resPF.sig <- resPF_2[resPF_2$padj <= 0.05, ]
+#write.csv(resPF_2, file = "PF_DE.csv", quote = FALSE, row.names = FALSE)
+
+#------Repeat forAG--------
+resAG_2 <- resAG[!is.na(resAG$padj), ]
+resAG_2 <- as.data.frame(resAG_2)
+resAG_2 <- cbind(rownames(resAG_2), resAG_2)
+rownames(resAG_2)<-NULL
+colnames(resAG_2)[1]<-"gene_id"
+resAG_2 <- merge(resAG_2, anno, by = "gene_id", all = TRUE)
+resAG_2 <- resAG_2[order(abs(resAG_2$log2FoldChange), decreasing = TRUE), ]
+resAG.sig <- resAG_2[abs(resAG_2$log2FoldChange) >= 1, ]
+resAG.sig <- resAG_2[resAG_2$padj <= 0.05, ]
+#write.csv(resAG_2, file = "AG_DE.csv", quote = FALSE, row.names = FALSE)
+
+#---ENVIRONMENT CLEAN---
+rm(resAG)
+rm(resPF)
+rm(resAG_2)
+rm(resPF_2)
+#-----------------------
+
+
+#-----------------Barplot---&---Heatmap-------------------
+#Barplot
+AG_up <- sum(resAG.sig[,3] >= 0, na.rm = TRUE)
+AG_down <- sum(resAG.sig[,3] <= 0, na.rm = TRUE)
+
+PF_up <- sum(resPF.sig[,3] >= 0, na.rm = TRUE)
+PF_down <- sum(resPF.sig[,3] <= 0, na.rm = TRUE)
+
+
+bp.data <- data.frame(values <- c(PF_up,PF_down,AG_up,AG_down),
+                      sample <- c("PF-9366 vs CTRL","PF-9366 vs CTRL","AG-270 vs CTRL","AG-270 vs CTRL"),
+                      Direction <- c("Up", "Down", "Up", "Down"))
+colnames(bp.data) <- c("values", "sample", "Direction")
+bp.data <- bp.data[c(4,3,2,1),]
+
+
+ggplot(bp.data, aes(x = sample, y = values, fill = Direction)) +
+  geom_bar(stat = "identity",
+           position = position_dodge(width = 0.7), 
+           width = 0.5, 
+           color = "black",
+           size = 0.5) +
+  geom_text(aes(label = values),
+            position = position_dodge(width = 0.7),
+            hjust = -0.1,
+            size = 6) +
+  scale_fill_manual(values = c("Up" = "red", "Down" = "blue")) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.17))) +
+  coord_flip() +  
+  labs(y = "No. Genes Deregulated") +
+  theme(axis.text.y = element_text(size = 18, face = "bold"),
+        axis.text.x = element_text(size = 18, face = "bold"),
+        axis.title.x = element_text(size = 18, face = "bold"),
+        legend.key.size = unit(1.5, "cm")
+        )
+  
+
+#Heatmap
+
+#Changing the sig results into just gene id and L2FC then merging into one data frame
+df_sig_PF <- as.data.frame(resPF.sig)
+df_sig_PF <- df_sig_PF[, c("gene_id", "log2FoldChange")] 
+df_sig_PF <- df_sig_PF[!is.na(df_sig_PF$gene_id), ]
+df_sig_PF$gene_id <- as.character(df_sig_PF$gene_id)
+df_sig_PF <- df_sig_PF[!duplicated(df_sig_PF[[1]]), ]
+
+df_sig_AG <- as.data.frame(resAG.sig)
+df_sig_AG <- df_sig_AG[, c("gene_id", "log2FoldChange")] 
+df_sig_AG <- df_sig_AG[!is.na(df_sig_AG$gene_id), ]
+df_sig_AG$gene_id <- as.character(df_sig_AG$gene_id)
+df_sig_AG <- df_sig_AG[!duplicated(df_sig_AG[[1]]), ]
+
+HM_matrix <- merge(df_sig_PF, df_sig_AG, by = "gene_id", all = TRUE)
+colnames(HM_matrix) <- c("Gene_Name", "Log2Foldchange_of_AG_treated", "Log2Foldchange_of_PF_treated")
+HM_matrix[is.na(HM_matrix)] <- 0
+rownames(HM_matrix) <- HM_matrix$Gene_Name
+HM_matrix <- HM_matrix[, -1]
+
+#Row means of the two L2FC columns and then order
+row_means <- rowMeans(HM_matrix, na.rm = TRUE)
+HM_matrix_means <- cbind(HM_matrix, row_means) 
+HM_matrix_means <- HM_matrix_means[order(abs(HM_matrix_means$row_means), decreasing = TRUE), ]
+HM_matrix_means$Gene_Name <- rownames(HM_matrix_means)
+
+#Heatmap Function for top genes(adjustable)
+top <- HM_matrix_means$Gene_Name[1:800]
+rld2 <- rlog(DESeq.ds, blind=FALSE)
+plot_matrix <- assay(rld2)
+top_idx <- rownames(plot_matrix) %in% top
+
+pheatmap(plot_matrix[top_idx,],
+         cellheight = 0.5, 
+         cellwidth = 15, 
+         scale = "row", 
+         show_rownames = FALSE, 
+         cluster_cols = TRUE,
+         col = colors)
+
+#-----enrichR------------------------------------------------------------------------------------
+dbs <- listEnrichrDbs()
+dbs <- c("MSigDB_Hallmark_2020")
+msigdbr_df <- msigdbr(species = "human", category = "H")
+colnames(msigdbr_df)[3] <- "ensembl_genes"
+
+#Results for enrichr made again as they need to be filtered by a log2FC of +/- >= 0.1 as used in paper
+#Results significance process the same but just labelled with an e for enrichr and then filtered on the log2FC line appropriately 
+
+eresPF_2 <- resPF[!is.na(resPF$padj), ]
+eresPF_2 <- as.data.frame(eresPF_2)
+eresPF_2 <- cbind(rownames(eresPF_2), eresPF_2)
+rownames(eresPF_2)<-NULL
+colnames(eresPF_2)[1]<-"gene_id"
+eresPF_2 <- merge(eresPF_2, anno, by = "gene_id", all = TRUE)
+eresPF_2 <- eresPF_2[order(abs(eresPF_2$log2FoldChange), decreasing = TRUE), ]
+eresPF.sig <- eresPF_2[abs(eresPF_2$log2FoldChange) >= 0.1, ]
+eresPF.sig <- eresPF_2[eresPF_2$padj <= 0.05, ]
+#write.csv(resPF_2, file = "PF_DE.csv", quote = FALSE, row.names = FALSE)
+#------Repeat forAG--------
+eresAG_2 <- resAG[!is.na(resAG$padj), ]
+eresAG_2 <- as.data.frame(eresAG_2)
+eresAG_2 <- cbind(rownames(eresAG_2), eresAG_2)
+rownames(eresAG_2)<-NULL
+colnames(eresAG_2)[1]<-"gene_id"
+eresAG_2 <- merge(eresAG_2, anno, by = "gene_id", all = TRUE)
+eresAG_2 <- eresAG_2[order(abs(eresAG_2$log2FoldChange), decreasing = TRUE), ]
+eresAG.sig <- eresAG_2[abs(eresAG_2$log2FoldChange) >= 1, ]
+eresAG.sig <- eresAG_2[eresAG_2$padj <= 0.05, ]
+
+#---------------------------------------------------------------------------------
+
+eresPF.sig.up <- eresPF.sig[eresPF.sig$log2FoldChange >= 0,]
+colnames(eresPF.sig.up)[1] <- "ensembl_gene"
+PF_up_overlap <- merge(msigdbr_df, eresPF.sig.up, by = "ensembl_gene")
+PF_up_hallmark <- PF_up_overlap$source_gene
+PF_up_enriched <- enrichr(PF_up_hallmark, dbs)
+PF_up_enriched.df <- as.data.frame(PF_up_enriched)
+PF_up_enriched.df <- PF_up_enriched.df[PF_up_enriched.df$MSigDB_Hallmark_2020.Adjusted.P.value <= 0.05, ]
+PF_up_BP_enriched.df <- PF_up_enriched.df[c(1,3,6,9,31),c(1,8)]
+write.csv(PF_up_enriched.df, file = "PF induced enrich results.csv", quote = FALSE, row.names = FALSE)
+
+ggplot(PF_up_BP_enriched.df, aes(x = reorder(MSigDB_Hallmark_2020.Term, MSigDB_Hallmark_2020.Combined.Score), y = MSigDB_Hallmark_2020.Combined.Score)) +
+  geom_bar(stat = "identity",
+           width = 0.4,
+           fill = "red", 
+           color = "black",
+           size = 1) +
+  coord_flip() +  
+  labs(x = "",
+       y = "",
+       title = "Activated - PF-9366") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),
+        panel.border = element_rect(color = "red", fill = NA, linewidth = 2),
+        axis.text.y = element_text(size = 16, face = "bold"),
+        axis.text.x = element_text(size = 18, face = "bold")
+  )
+
+
+eresPF.sig.dn <- eresPF.sig[eresPF.sig$log2FoldChange <= 0,]
+colnames(eresPF.sig.dn)[1] <- "ensembl_gene"
+PF_dn_overlap <- merge(msigdbr_df, eresPF.sig.dn, by = "ensembl_gene")
+PF_dn_hallmark <- PF_dn_overlap$source_gene
+PF_dn_enriched <- enrichr(PF_dn_hallmark, dbs)
+PF_dn_enriched.df <- as.data.frame(PF_dn_enriched)
+PF_dn_enriched.df <- PF_dn_enriched.df[PF_dn_enriched.df$MSigDB_Hallmark_2020.Adjusted.P.value <= 0.05, ]
+PF_dn_BP_enriched.df <- PF_dn_enriched.df[c(1,2,3,5),c(1,8)]
+write.csv(PF_dn_enriched.df, file = "PF repressed enrich results.csv", quote = FALSE, row.names = FALSE)
+
+ggplot(PF_dn_BP_enriched.df, aes(x = reorder(MSigDB_Hallmark_2020.Term, MSigDB_Hallmark_2020.Combined.Score), y = MSigDB_Hallmark_2020.Combined.Score)) +
+  geom_bar(stat = "identity",
+           width = 0.4,
+           fill = "blue", 
+           color = "black",
+           size = 1) +
+  coord_flip() +  
+  labs(x = "",
+       y = "",
+       title = "Repressed - PF-9366") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),
+        panel.border = element_rect(color = "blue", fill = NA, linewidth = 2),
+        axis.text.y = element_text(size = 16, face = "bold"),
+        axis.text.x = element_text(size = 18, face = "bold")
+  )
+
+
+eresAG.sig.up <- eresAG.sig[eresAG.sig$log2FoldChange >= 0,]
+colnames(eresAG.sig.up)[1] <- "ensembl_gene"
+AG_up_overlap <- merge(msigdbr_df, eresAG.sig.up, by = "ensembl_gene")
+AG_up_hallmark <- AG_up_overlap$source_gene
+AG_up_enriched <- enrichr(AG_up_hallmark, dbs)
+AG_up_enriched.df <- as.data.frame(AG_up_enriched)
+AG_up_enriched.df <- AG_up_enriched.df[AG_up_enriched.df$MSigDB_Hallmark_2020.Adjusted.P.value <= 0.05, ]
+AG_up_BP_enriched.df <- AG_up_enriched.df[c(1,3,4,7),c(1,8)]
+write.csv(AG_up_enriched.df, file = "AG induced enrich results.csv", quote = FALSE, row.names = FALSE)
+
+ggplot(AG_up_BP_enriched.df, aes(x = reorder(MSigDB_Hallmark_2020.Term, MSigDB_Hallmark_2020.Combined.Score), y = MSigDB_Hallmark_2020.Combined.Score)) +
+  geom_bar(stat = "identity",
+           width = 0.4,
+           fill = "red", 
+           color = "black",
+           size = 1) +
+  coord_flip() +  
+  labs(x = "",
+       y = "Combined Score",
+       title = "Activiated - AG-270") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),
+        panel.border = element_rect(color = "red", fill = NA, linewidth = 2),
+        axis.text.y = element_text(size = 16, face = "bold"),
+        axis.text.x = element_text(size = 18, face = "bold"),
+        axis.title.x = element_text(size = 18, face = "bold")
+  )
+
+eresAG.sig.dn <- eresAG.sig[eresAG.sig$log2FoldChange <= 0,]
+colnames(eresAG.sig.dn)[1] <- "ensembl_gene"
+AG_dn_overlap <- merge(msigdbr_df, eresAG.sig.dn, by = "ensembl_gene")
+AG_dn_hallmark <- AG_dn_overlap$source_gene
+AG_dn_enriched <- enrichr(AG_dn_hallmark, dbs)
+AG_dn_enriched.df <- as.data.frame(AG_dn_enriched)
+AG_dn_enriched.df <- AG_dn_enriched.df[AG_dn_enriched.df$MSigDB_Hallmark_2020.Adjusted.P.value <= 0.05, ]
+AG_dn_BP_enriched.df <- PF_up_enriched.df[c(2,3,5,7),c(1,8)]
+write.csv(AG_dn_enriched.df, file = "AG repressed enrich results.csv", quote = FALSE, row.names = FALSE)
+
+ggplot(AG_dn_BP_enriched.df, aes(x = reorder(MSigDB_Hallmark_2020.Term, MSigDB_Hallmark_2020.Combined.Score), y = MSigDB_Hallmark_2020.Combined.Score)) +
+  geom_bar(stat = "identity",
+           width = 0.4,
+           fill = "blue", 
+           color = "black",
+           size = 1) +
+  coord_flip() +  
+  labs(x = "",
+       y = "Combined Score",
+       title = "Repressed - AG-270") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),
+        panel.border = element_rect(color = "blue", fill = NA, linewidth = 2),
+        axis.text.y = element_text(size = 16, face = "bold"),
+        axis.text.x = element_text(size = 18, face = "bold"),
+        axis.title.x = element_text(size = 18, face = "bold")
+  )
+
+#-------Gene Set Enrichment Analysis(GSEA)-------
+
+#Using the log fold change shrinkage function
+
+resLFC_PF <- lfcShrink(DESeq.ds, contrast = c("Condition", "PF-9366", "CTRL"), type="ashr")
+resLFC_PF <- resLFC_PF[!is.na(resLFC_PF$padj), ]
+resLFC_PF <- as.data.frame(resLFC_PF)
+resLFC_PF <- cbind(rownames(resLFC_PF), resLFC_PF)
+rownames(resLFC_PF)<-NULL
+colnames(resLFC_PF)[1]<-"gene_id"
+resLFC_PF <- merge(resLFC_PF, anno)[,c(1,12,13,2:6)]
+resLFC_PF <- resLFC_PF[!duplicated(resLFC_PF[[1]]), ]
+
+#Enhanced volcano before significant gene filtering
+EnhancedVolcano(resLFC_PF,
+                lab = resLFC_PF$gene_name,
+                selectLab = genes_of_interest,
+                title = "PF-9366 Treated VCaP Cell Line",
+                legendPosition = "bottom",
+                x = "log2FoldChange", y = "padj",
+                axisLabSize = 20,
+                xlim = c(-2.5,3),
+                labSize = 6,
+                drawConnectors = TRUE,
+                lengthConnectors = unit(0.1, "inches"),
+                widthConnectors = unit(0.7, "mm"),
+                arrowheads = FALSE) 
+
+PF_sigLFC <- resLFC_PF[resLFC_PF$padj <= 0.05, ]
+PF_sigLFC <- resLFC_PF[order(abs(resLFC_PF$log2FoldChange), decreasing = TRUE), ]
+#write.csv(resLFC_PF, file = "PF_DE.csv", quote = FALSE, row.names = FALSE)
+
+#Repeat for AG
+resLFC_AG <- lfcShrink(DESeq.ds, contrast = c("Condition", "AG-270", "CTRL"), type="ashr")
+resLFC_AG <- resLFC_AG[!is.na(resLFC_AG$padj), ]
+resLFC_AG <- as.data.frame(resLFC_AG)
+resLFC_AG <- cbind(rownames(resLFC_AG), resLFC_AG)
+rownames(resLFC_AG)<-NULL
+colnames(resLFC_AG)[1]<-"gene_id"
+resLFC_AG <- merge(resLFC_AG, anno)[,c(1,12,13,2:6)]
+resLFC_AG <- resLFC_AG[!duplicated(resLFC_AG[[1]]), ]
+
+#Enhanced volcano before significant gene filtering
+EnhancedVolcano(resLFC_AG,
+                lab = resLFC_AG$gene_name,
+                selectLab = genes_of_interest,
+                title = "AG-270 Treated VCaP Cell Line",
+                legendPosition = "bottom",
+                x = "log2FoldChange", y = "padj",
+                axisLabSize = 20,
+                xlim = c(-2.5,3),
+                labSize = 6,
+                drawConnectors = TRUE,
+                lengthConnectors = unit(0.1, "inches"),
+                widthConnectors = unit(0.7, "mm"),
+                arrowheads = FALSE) 
+                
+AG_sigLFC <- resLFC_AG[resLFC_AG$padj <= 0.05, ]
+AG_sigLFC <- resLFC_AG[order(abs(resLFC_AG$log2FoldChange), decreasing = TRUE), ]
+#write.csv(resLFC_AG, file = "AG_DE.csv", quote = FALSE, row.names = FALSE)
+
+#Making a vector of gene names that are displayed on volcano plot
+genes_of_interest <- c("SOX30", "MAT2A", "CYP1A1", "C1QTNF3-AMACR", "ENTREP1", "PLOD2", "SLC16A3", "MIR210HG", "ATF3", "NFKBIZ")
+
+
+#-----Camera-----
+pathways_vector <- split(msigdbr_df$entrez_gene, msigdbr_df$gs_name)
+
+PF_gene_id <- resPF.sig$gene_id
+PF_L2FC <- resPF.sig$log2FoldChange
+PF_gse.df <- data.frame(PF_gene_id,PF_L2FC)
+
+PF_entrezIDs <- bitr(PF_gene_id, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = "org.Hs.eg.db")
+PF_gse.df <- merge(PF_gse.df, PF_entrezIDs, by.x = "PF_gene_id", by.y = "ENSEMBL")[,c(3,2)]
+PF_geneList <- PF_gse.df[,2] 
+names(PF_geneList) <- as.character(PF_gse.df[,1])
+
+PF_camerares <- cameraPR(PF_geneList, pathways_vector, use.ranks = FALSE)
+#Adjusted to a significant P Value
+PF_camerares_pvalue <- PF_camerares[PF_camerares$PValue <= 0.05,]
+PF_camerares_pvalue <- cbind(rownames(PF_camerares_pvalue), PF_camerares_pvalue)
+rownames(PF_camerares_pvalue) <- NULL
+#Write into an excel table
+write.csv(PF_camerares_pvalue, file = "PF_camerares_PValue.csv", quote = FALSE, row.names = FALSE)
+
+#Repeat for AG sample
+AG_gene_id <- resAG.sig$gene_id
+AG_L2FC <- resAG.sig$log2FoldChange
+AG_gse.df <- data.frame(AG_gene_id,AG_L2FC)
+
+AG_entrezIDs <- bitr(AG_gene_id, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = "org.Hs.eg.db")
+AG_gse.df <- merge(AG_gse.df, AG_entrezIDs, by.x = "AG_gene_id", by.y = "ENSEMBL")[,c(3,2)]
+AG_geneList <- AG_gse.df[,2] 
+names(AG_geneList) <- as.character(AG_gse.df[,1])
+
+AG_camerares <- cameraPR(AG_geneList, pathways_vector, use.ranks = FALSE)
+AG_camerares_pvalue <- AG_camerares[AG_camerares$PValue <= 0.05,]
+AG_camerares_pvalue <- cbind(rownames(AG_camerares_pvalue), AG_camerares_pvalue)
+rownames(AG_camerares_pvalue) <- NULL
+#Write into an excel table
+write.csv(AG_camerares_pvalue, file = "AG_camerares_PValue.csv", quote = FALSE, row.names = FALSE)
