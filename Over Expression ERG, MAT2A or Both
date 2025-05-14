@@ -1,0 +1,381 @@
+#---
+  
+Title: "ERR10036895-906 analysis"
+#12 samples of stable RWPE cells with expression of ERG, MAT2A and ERG/MAT2A together.
+
+#---
+  
+#NOTE: Recommended to clean environment throughout script
+  
+#Install packages and load libraries 
+
+install.packages("RColorBrewer", method = "wininet")
+install.packages("pheatmap", method = "wininet")
+install.packages("ashr", method = "wininet")
+
+#Bioconductor
+install.packages("BiocManager", method = "wininet")
+
+#Core Bioconductor
+BiocManager::install(method = "wininet")
+
+#BioC packages 
+BiocManager::install("DESeq2", method = "wininet", force = TRUE)
+BiocManager::install("EnhancedVolcano", method = "wininet")
+BiocManager::install("clusterProfiler", method = "wininet")
+BiocManager::install("enrichplot", method = "wininet")
+BiocManager::install("org.Hs.eg.db", method = "wininet")
+BiocManager::install("msigdbr", method = "wininet")
+BiocManager::install("enrichR", method = "wininet")
+BiocManager::install("limma", method = "wininet")
+
+#errors with this package, try running the msig df making line and it will ask to install, option Yes and it works
+install.packages('msigdbdf', repos = 'https://igordot.r-universe.dev')
+
+library(RColorBrewer)
+library(pheatmap)
+library(BiocManager)
+library(DESeq2)
+library(EnhancedVolcano)
+library(enrichplot)
+library(tidyr)
+library(enrichR)
+library(ggplot2)
+library(org.Hs.eg.db)
+library(msigdbr)
+library(limma)
+ 
+#Experiment 2: kd of MAT2A and ERG either individually or together in RWPE-1 cell line which is a normal human prostate cell line
+
+#Setting directory to relevant counts folder
+  
+setwd("C:/Users/w22012396/OneDrive - Northumbria University - Production Azure AD/Documents/UNI Y3/Diss project/Data/Counts files/ERR895-906")
+#Files in folder
+RWPE.Exp.Files <- list.files(pattern = "-counts.txt")
+#renaming files into respective names for the experiment
+ID.RWPE.Exp.Files <-{
+  ID.RWPE.Exp.Files <- gsub("-counts.txt"," " ,RWPE.Exp.Files)
+  ID.RWPE.Exp.Files <-gsub("ERR10036895", "Ctrl1",ID.RWPE.Exp.Files)
+  ID.RWPE.Exp.Files <-gsub("ERR10036896", "Ctrl2",ID.RWPE.Exp.Files)
+  ID.RWPE.Exp.Files <-gsub("ERR10036897", "Ctrl3",ID.RWPE.Exp.Files)
+  ID.RWPE.Exp.Files <-gsub("ERR10036898", "ERG.MAT2A.1",ID.RWPE.Exp.Files)
+  ID.RWPE.Exp.Files <-gsub("ERR10036899", "ERG.MAT2A.2",ID.RWPE.Exp.Files)
+  ID.RWPE.Exp.Files <-gsub("ERR10036900", "ERG.MAT2A.3",ID.RWPE.Exp.Files)
+  ID.RWPE.Exp.Files <-gsub("ERR10036901", "ERG.1",ID.RWPE.Exp.Files)
+  ID.RWPE.Exp.Files <-gsub("ERR10036902", "ERG.2",ID.RWPE.Exp.Files)
+  ID.RWPE.Exp.Files <-gsub("ERR10036903", "ERG.3",ID.RWPE.Exp.Files)
+  ID.RWPE.Exp.Files <-gsub("ERR10036904", "MAT2A.1",ID.RWPE.Exp.Files)
+  ID.RWPE.Exp.Files <-gsub("ERR10036905", "MAT2A.2",ID.RWPE.Exp.Files)
+  ID.RWPE.Exp.Files <-gsub("ERR10036906", "MAT2A.3",ID.RWPE.Exp.Files)
+}
+#Celltype vector creation
+CellType <- c(rep("RWPE", 12,))
+Condition <- c("CTRL", "CTRL", "CTRL", "ERG+MAT2A", "ERG+MAT2A", "ERG+MAT2A", "ERG", "ERG", "ERG", "MAT2A", "MAT2A", "MAT2A")
+#Combination of both variables??? ASK MATT?
+condCType <- paste0(CellType, Condition)
+#Data frame
+Sample.table.1 <- DataFrame(ID.RWPE.Exp.Files, RWPE.Exp.Files, Condition, CellType, condCType)
+#Summarised Experiment
+se <- DESeqDataSetFromHTSeqCount(Sample.table.1, design = ~Condition )
+#Removal of the .numbers on the Gene Ids to make compatitible with external gene ID datasets
+rownames(se) <- gsub("\\.\\d+$", "", rownames(se), perl = TRUE)
+#Transformation of the Summarised experiment into a DeSeq dataset
+DESeq.ds <- DESeqDataSet(se, design = ~Condition)
+#Ask Matt about this stage???
+DESeq.ds$Condition <- as.factor(DESeq.ds$Condition)
+DESeq.ds$Condition <- relevel(DESeq.ds$Condition, ref = "CTRL")
+#Main DESeq method
+DESeq.ds <-DESeq(DESeq.ds)
+#Quality control checks, using rlog to normally distribute the data???
+rld <- rlog(DESeq.ds, blind = TRUE)
+#Principal component analysis plot
+plotPCA(rld, intgroup=c("Condition"))+ 
+  theme(axis.text.y = element_text(size = 14, face = "bold"),
+        axis.text.x = element_text(size = 14, face = "bold"),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16),
+        legend.key.size = unit(0.6, "cm")) + 
+  labs(color = "Sample Group")
+plotPC
+#Heatmap of samples
+sampleDists <- dist(t(assay(rld)))
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- paste(rld$Condition)
+colnames(sampleDistMatrix) <- paste(rld$Condition)
+colors <- colorRampPalette(c("#045a8d","#74a9cf", "white","#fb6a4a", "#a50f15")  )(100)
+pheatmap(sampleDistMatrix, Col=colors, cellwidth = 15, cellheight = 20)
+
+#Differential Gene Expression 
+resE <- results(DESeq.ds, contrast = c("Condition", "ERG", "CTRL"))
+resM <- results(DESeq.ds, contrast = c("Condition", "MAT2A", "CTRL"))
+resEM <- results(DESeq.ds, contrast = c("Condition", "ERG/MAT2A", "CTRL"))
+
+#Making of anno ---
+gencodev47 <- import("gencode.v47.primary_assembly.basic.annotation.gtf.gz")
+gencodev47 <- gencodev47[gencodev47$type == "gene", ]
+gencodev47$gene_id <- gsub("\\.\\d+$", "", gencodev47$gene_id, perl = TRUE)
+anno <- gencodev47[, c("gene_id", "gene_name", "gene_type")]
+rm(gencodev47)
+
+#BLOCK---Making significant results by merging with anno and filtering L2FC >=1 and PValue <=0.05
+resE_2 <- resE[!is.na(resE$padj), ]
+resE_2 <- as.data.frame(resE_2)
+resE_2 <- cbind(rownames(resE_2), resE_2)
+rownames(resE_2)<-NULL
+colnames(resE_2)[1]<-"gene_id"
+resE_2 <- merge(resE_2, anno, by = "gene_id", all = TRUE)
+resE_2 <- resE_2[order(abs(resE_2$log2FoldChange), decreasing = TRUE), ]
+resE.sig <- resE_2[abs(resE_2$log2FoldChange) >= 1, ]
+resE.sig <- resE_2[resE_2$padj <= 0.05, ]
+#write.csv(resE_2, file = "ERG_DE.csv", quote = FALSE, row.names = FALSE)
+
+#------Repeat forM--------
+resM_2 <- resM[!is.na(resM$padj), ]
+resM_2 <- as.data.frame(resM_2)
+resM_2 <- cbind(rownames(resM_2), resM_2)
+rownames(resM_2)<-NULL
+colnames(resM_2)[1]<-"gene_id"
+resM_2 <- merge(resM_2, anno, by = "gene_id", all = TRUE)
+resM_2 <- resM_2[order(abs(resM_2$log2FoldChange), decreasing = TRUE), ]
+resM.sig <- resM_2[abs(resM_2$log2FoldChange) >= 1, ]
+resM.sig <- resM_2[resM_2$padj <= 0.05, ]
+#write.csv(resM_2, file = "M_DE.csv", quote = FALSE, row.names = FALSE)
+
+#Repeat for EM
+resEM_2 <- resEM[!is.na(resEM$padj), ]
+resEM_2 <- as.data.frame(resEM_2)
+resEM_2 <- cbind(rownames(resEM_2), resEM_2)
+rownames(resEM_2)<-NULL
+colnames(resEM_2)[1]<-"gene_id"
+resEM_2 <- merge(resEM_2, anno, by = "gene_id", all = TRUE)
+resEM_2 <- resEM_2[order(abs(resEM_2$log2FoldChange), decreasing = TRUE), ]
+resEM.sig <- resEM_2[abs(resEM_2$log2FoldChange) >= 1, ]
+resEM.sig <- resEM_2[resEM_2$padj <= 0.05, ]
+#write.csv(resEM_2, file = "EM_DE.csv", quote = FALSE, row.names = FALSE)
+#---ENVIRONMENT CLEAN---
+rm(resE)
+rm(resM)
+rm(resEM)
+rm(resE_2)
+rm(resM_2)
+rm(resEM_2)
+#-----------------------
+
+
+#-----------------Barplot---&---Heatmap-------------------
+#Barplot
+E_up <- sum(resE.sig[,3] >= 0, na.rm = TRUE)
+E_down <- sum(resE.sig[,3] <= 0, na.rm = TRUE)
+
+M_up <- sum(resM.sig[,3] >= 0, na.rm = TRUE)
+M_down <- sum(resM.sig[,3] <= 0, na.rm = TRUE)
+
+EM_up <- sum(resEM.sig[,3] >= 0, na.rm = TRUE)
+EM_down <- sum(resEM.sig[,3] <= 0, na.rm = TRUE)
+
+
+bp.data <- data.frame(values <- c(E_up, E_down, M_up, M_down, EM_up, EM_down),
+                      sample <- c("ERG vs CTRL","ERG vs CTRL","MAT2A vs CTRL","MAT2A vs CTRL","ERG+MAT2A vs CTRL","ERG+MAT2A vs CTRL"),
+                      Direction <- c("Up", "Down", "Up", "Down", "Up", "Down"))
+colnames(bp.data) <- c("Values", "Sample", "Direction")
+bp.data <- bp.data[c(4,3,2,1),]
+
+
+ggplot(bp.data, aes(x = sample, y = values, fill = Direction)) +
+  geom_bar(stat = "identity",
+           position = position_dodge(width = 0.7), 
+           width = 0.5, 
+           color = "black",
+           size = 0.5) +
+  geom_text(aes(label = values),
+            position = position_dodge(width = 0.7),
+            hjust = -0.1,
+            size = 6) +
+  scale_fill_manual(values = c("Up" = "red", "Down" = "blue")) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.17))) +
+  coord_flip() +  
+  labs(y = "No. Genes Deregulated") +
+  theme(axis.text.y = element_text(size = 18, face = "bold"),
+        axis.text.x = element_text(size = 18, face = "bold"),
+        axis.title.x = element_text(size = 18, face = "bold"),
+        legend.key.size = unit(1.5, "cm")
+  )
+
+#Heatmap
+
+#Changing the sig results into just gene id and L2FC then merging into one data frame
+df_sig_E <- as.data.frame(resE.sig)
+df_sig_E <- df_sig_E[, c("gene_id", "log2FoldChange")] 
+df_sig_E <- df_sig_E[!is.na(df_sig_E$gene_id), ]
+df_sig_E$gene_id <- as.character(df_sig_E$gene_id)
+df_sig_E <- df_sig_E[!duplicated(df_sig_E[[1]]), ]
+
+df_sig_M <- as.data.frame(resM.sig)
+df_sig_M <- df_sig_M[, c("gene_id", "log2FoldChange")] 
+df_sig_M <- df_sig_M[!is.na(df_sig_M$gene_id), ]
+df_sig_M$gene_id <- as.character(df_sig_M$gene_id)
+df_sig_M <- df_sig_M[!duplicated(df_sig_M[[1]]), ]
+
+df_sig_EM <- as.data.frame(resEM.sig)
+df_sig_EM <- df_sig_EM[, c("gene_id", "log2FoldChange")] 
+df_sig_EM <- df_sig_EM[!is.na(df_sig_EM$gene_id), ]
+df_sig_EM$gene_id <- as.character(df_sig_EM$gene_id)
+df_sig_EM <- df_sig_EM[!duplicated(df_sig_EM[[1]]), ]
+
+HM_matrix <- merge(df_sig_E, df_sig_M, by = "gene_id", all = TRUE)
+HM_matrix <- merge(HM_matrix, df_sig_EM, by = "gene_id", all = TRUE)
+colnames(HM_matrix) <- c("Gene_Name", "Log2Foldchange_of_ERG_kd", "Log2Foldchange_of_MAT2A_kd", "Log2Foldchange_of_ERG/MAT2A_kd")
+HM_matrix[is.na(HM_matrix)] <- 0
+rownames(HM_matrix) <- HM_matrix$Gene_Name
+HM_matrix <- HM_matrix[, -1]
+
+#Row means of the two L2FC columns and then order
+row_means <- rowMeans(HM_matrix, na.rm = TRUE)
+HM_matrix_means <- cbind(HM_matrix, row_means) 
+HM_matrix_means <- HM_matrix_means[order(abs(HM_matrix_means$row_means), decreasing = TRUE), ]
+HM_matrix_means$Gene_Name <- rownames(HM_matrix_means)
+
+#Heatmap Function for top genes(adjustable)
+top <- HM_matrix_means$Gene_Name[1:800]
+rld2 <- rlog(DESeq.ds, blind=FALSE)
+plot_matrix <- assay(rld2)
+top_idx <- rownames(plot_matrix) %in% top
+
+pheatmap(plot_matrix[top_idx,],
+         cellheight = 0.4, 
+         cellwidth = 15, 
+         scale = "row", 
+         show_rownames = FALSE, 
+         cluster_cols = TRUE, 
+         col = colors)
+
+#-----enrichR------------------------------------------------------------------------------------
+dbs <- listEnrichrDbs()
+dbs <- c("MSigDB_Hallmark_2020")
+msigdbr_df <- msigdbr(species = "human", category = "H")
+colnames(msigdbr_df)[3] <- "ensembl_genes"
+
+#Results for enrichr made again as they need to be filtered by a log2FC of +/- >= 0.1 as used in paper
+#Results significance process the same but just labelled with an e for enrichr and then filtered on the log2FC line appropriately 
+
+eresEM_2 <- resEM[!is.na(resEM$padj), ]
+eresEM_2 <- as.data.frame(eresEM_2)
+eresEM_2 <- cbind(rownames(eresEM_2), eresEM_2)
+rownames(eresEM_2)<-NULL
+colnames(eresEM_2)[1]<-"gene_id"
+eresEM_2 <- merge(eresEM_2, anno, by = "gene_id", all = TRUE)
+eresEM_2 <- eresEM_2[order(abs(eresEM_2$log2FoldChange), decreasing = TRUE), ]
+eresEM.sig <- eresEM_2[abs(eresEM_2$log2FoldChange) >= 0.1, ]
+eresEM.sig <- eresEM_2[eresEM_2$padj <= 0.05, ]
+
+#---------------------------------------------------------------------------------
+
+eresEM.sig.up <- eresEM.sig[eresEM.sig$log2FoldChange >= 0,]
+colnames(eresEM.sig.up)[1] <- "ensembl_gene"
+EM_up_overlap <- merge(msigdbr_df, eresEM.sig.up, by = "ensembl_gene")
+EM_up_hallmark <- EM_up_overlap$source_gene
+EM_up_enriched <- enrichr(EM_up_hallmark, dbs)
+EM_up_enriched.df <- as.data.frame(EM_up_enriched)
+EM_up_enriched.df <- EM_up_enriched.df[EM_up_enriched.df$MSigDB_Hallmark_2020.Adjusted.P.value <= 0.05, ]
+EM_up_BP_enriched.df <- EM_up_enriched.df[c(1,18,29,37,40),c(1,8)]
+write.csv(EM_up_enriched.df, file = "EM induced enrich results.csv", quote = FALSE, row.names = FALSE)
+
+ggplot(EM_up_BP_enriched.df, aes(x = reorder(MSigDB_Hallmark_2020.Term, MSigDB_Hallmark_2020.Combined.Score), y = MSigDB_Hallmark_2020.Combined.Score)) +
+  geom_bar(stat = "identity",
+           width = 0.4,
+           fill = "red", 
+           color = "black",
+           size = 1) +
+  coord_flip() +  
+  labs(x = "",
+       y = "",
+       title = "ERG/MAT2A Induced") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),
+        panel.border = element_rect(color = "red", fill = NA, linewidth = 2),
+        axis.text.y = element_text(size = 16, face = "bold"),
+        axis.text.x = element_text(size = 18, face = "bold")
+  )
+
+
+eresEM.sig.dn <- eresEM.sig[eresEM.sig$log2FoldChange <= 0,]
+colnames(eresEM.sig.dn)[1] <- "ensembl_gene"
+EM_dn_overlap <- merge(msigdbr_df, eresEM.sig.dn, by = "ensembl_gene")
+EM_dn_hallmark <- EM_dn_overlap$source_gene
+EM_dn_enriched <- enrichr(EM_dn_hallmark, dbs)
+EM_dn_enriched.df <- as.data.frame(EM_dn_enriched)
+EM_dn_enriched.df <- EM_dn_enriched.df[EM_dn_enriched.df$MSigDB_Hallmark_2020.Adjusted.P.value <= 0.05, ]
+EM_dn_BP_enriched.df <- EM_dn_enriched.df[c(1,2,6,10,14),c(1,8)]
+write.csv(EM_dn_enriched.df, file = "EM repressed enrich results.csv", quote = FALSE, row.names = FALSE)
+
+ggplot(EM_dn_BP_enriched.df, aes(x = reorder(MSigDB_Hallmark_2020.Term, MSigDB_Hallmark_2020.Combined.Score), y = MSigDB_Hallmark_2020.Combined.Score)) +
+  geom_bar(stat = "identity",
+           width = 0.4,
+           fill = "blue", 
+           color = "black",
+           size = 1) +
+  coord_flip() +  
+  labs(x = "",
+       y = "",
+       title = "ERG/MAT2A Repressed") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),
+        panel.border = element_rect(color = "blue", fill = NA, linewidth = 2),
+        axis.text.y = element_text(size = 16, face = "bold"),
+        axis.text.x = element_text(size = 18, face = "bold")
+  )
+
+#-------Gene Set Enrichment Analysis(GSEA)-------
+
+#Using the log fold change shrinkage function
+
+resLFC_EM <- lfcShrink(DESeq.ds, contrast = c("Condition", "ERG/MAT2A", "CTRL"), type="ashr")
+resLFC_EM <- resLFC_EM[!is.na(resLFC_EM$padj), ]
+resLFC_EM <- as.data.frame(resLFC_EM)
+resLFC_EM <- cbind(rownames(resLFC_EM), resLFC_EM)
+rownames(resLFC_EM)<-NULL
+colnames(resLFC_EM)[1]<-"gene_id"
+resLFC_EM <- merge(resLFC_EM, anno)[,c(1,12,13,2:6)]
+resLFC_EM <- resLFC_EM[!duplicated(resLFC_EM[[1]]), ]
+
+EnhancedVolcano(resLFC_EM,
+                lab = resLFC_EM$gene_name,
+                selectLab = genes_of_interest,
+                title = "ERG/MAT2A RWPE-1 Cell Line",
+                legendPosition = "bottom",
+                x = "log2FoldChange", y = "padj",
+                axisLabSize = 20,
+                xlim = c(-9,9),
+                labSize = 6,
+                drawConnectors = TRUE,
+                lengthConnectors = unit(0.1, "inches"),
+                widthConnectors = unit(0.7, "mm"),
+                arrowheads = FALSE) 
+
+genes_of_interest <- c("MAT2A","SOD2", "TENM2", "RPC10", "LAMA1", "PHACTR3", "MIR646HG", "SERPINE1", "CEMIP", "PLAG1")
+
+EM_sigLFC <- resLFC_EM[order(abs(resLFC_EM$log2FoldChange), decreasing = TRUE), ]
+EM_sigLFC <- resLFC_EM[resLFC_EM$padj <= 0.05, ]
+#write.csv(resLFC_EM, file = "EM_DE.csv", quote = FALSE, row.names = FALSE)
+
+
+#-----Camera-----
+pathways_vector <- split(msigdbr_df$entrez_gene, msigdbr_df$gs_name)
+
+EM_gene_id <- resEM.sig$gene_id
+EM_L2FC <- resEM.sig$log2FoldChange
+EM_gse.df <- data.frame(EM_gene_id,EM_L2FC)
+
+EM_entrezIDs <- bitr(EM_gene_id, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = "org.Hs.eg.db")
+EM_gse.df <- merge(EM_gse.df, EM_entrezIDs, by.x = "EM_gene_id", by.y = "ENSEMBL")[,c(3,2)]
+EM_geneList <- EM_gse.df[,2] 
+names(EM_geneList) <- as.character(EM_gse.df[,1])
+
+EM_camerares <- cameraPR(EM_geneList, pathways_vector, use.ranks = FALSE)
+#Adjusted to a signifcant PValue
+EM_camerares_pvalue <- EM_camerares[EM_camerares$PValue <= 0.05,]
+EM_camerares_pvalue <- cbind(rownames(EM_camerares_pvalue), EM_camerares_pvalue)
+rownames(EM_camerares_pvalue) <- NULL
+#Write into an excel table
+write.csv(EM_camerares_pvalue, file = "EM_camerares_PValue.csv", quote = FALSE, row.names = FALSE)
