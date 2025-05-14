@@ -1,0 +1,277 @@
+#---
+
+#Convergance Analysis Scirpt - ERG/MAT2A and ERG inhibitied
+
+#---
+
+#Need the basic res__.sig: resAG.sig,resPF.sig,resEM.sig from other main scripts for venn diagrams
+
+#Comparing PF and AG seperately to EM overexpression
+
+#Looking at AG/PF downregulated pathways/genes compared to upregulated pathways/genes in EM overexpression
+
+#Venn Diagram Package install and library call
+install.packages("VennDiagram", method = "wininet")
+library(VennDiagram)
+
+#Environment clean from generating eres______'s from respective scripts
+rm(list = setdiff(ls(), c("anno", "msigdbr_df", "dbs", "eresAG.sig", "eresEM.sig", "eresPF.sig")))
+
+#Up and down regulation split
+eresEM.sig_up <- eresEM.sig[eresEM.sig$log2FoldChange >=0.1, ]
+eresEM.sig_dn <- eresEM.sig[eresEM.sig$log2FoldChange <= -0.1, ]
+
+eresAG.sig_up <- eresAG.sig[eresAG.sig$log2FoldChange >=0.1, ]
+eresAG.sig_dn <- eresAG.sig[eresAG.sig$log2FoldChange <= -0.1, ]
+
+eresPF.sig_up <- eresPF.sig[eresPF.sig$log2FoldChange >=0.1, ]
+eresPF.sig_dn <- eresPF.sig[eresPF.sig$log2FoldChange <= -0.1, ]
+
+#Removal of NA values
+eresEM.sig_dn <- eresEM.sig_dn[!is.na(eresEM.sig_dn$padj), ]
+eresEM.sig_up <- eresEM.sig_up[!is.na(eresEM.sig_up$padj), ]
+
+eresAG.sig_dn <- eresAG.sig_dn[!is.na(eresAG.sig_dn$padj), ]
+eresAG.sig_up <- eresAG.sig_up[!is.na(eresAG.sig_up$padj), ]
+
+eresPF.sig_dn <- eresPF.sig_dn[!is.na(eresPF.sig_dn$padj), ]
+eresPF.sig_up <- eresPF.sig_up[!is.na(eresPF.sig_up$padj), ]
+
+#-----------------------------------------------------------------------------------------------------------
+#ERG/MAT2A induced compared to Pf-9366 treated downregulated.
+
+#Fisher exact test to test for the likelihood that the overlap occured by chance. Gencode used as all genes!
+universe_genes <- anno$gene_id
+
+EM_up_uni <- universe_genes %in% eresEM.sig_up$gene_id
+PF_dn_uni <- universe_genes %in% eresPF.sig_dn$gene_id
+
+table1 <- table(EM_up_uni, PF_dn_uni)
+table1fisher <- fisher.test(table1)
+table1fisher$p.value
+
+#Check overlap in Venn Diagram --- Entering the pvalue from above into the Title of the Venn Diagram 
+
+venn.plot1 <- venn.diagram(
+  x = list("ERG/MAT2A Induced" = eresEM.sig_up$gene_id, "PF-9366 Down" = eresPF.sig_dn$gene_id),
+  filename = NULL,
+  scaled = FALSE,
+  fill = c(NA,  NA),
+  col = c("green", "blue"),
+  lwd = 3,
+  cat.cex = 2,
+  cat.pos = c(-12,12),
+  cex = 2,
+  main = "PValue = 7.047611e-104",
+  main.cex = 2
+)
+grid::grid.draw(venn.plot1)
+
+#--------------------------------------------------------------------------------------------------------------
+#ERG/MAT2A induced compared to AG-270 treated downregulated.
+
+#Fisher exact test to test for the likelihood that the overlap occured by chance. Gencode used as all genes!
+EM_up_uni <- universe_genes %in% eresEM.sig_up$gene_id
+AG_dn_uni <- universe_genes %in% eresAG.sig_dn$gene_id
+
+table2 <- table(EM_up_uni, AG_dn_uni)
+table2fisher <- fisher.test(table2)
+table2fisher$p.value
+
+#Check overlap in Venn Diagram --- Entering the pvalue from above into the Title of the Venn Diagram 
+
+venn.plot2 <- venn.diagram(
+  x = list("ERG/MAT2A Induced" = eresEM.sig_up$gene_id, "AG-270 Down" = eresAG.sig_dn$gene_id),
+  filename = NULL,
+  scaled = FALSE,
+  fill = c(NA,  NA),
+  col = c("green", "blue"),
+  lwd = 3,
+  cat.cex = 2,
+  cat.pos = c(-12,12),
+  cex = 2,
+  main = "PValue = 4.846356e-42",
+  main.cex = 2
+)
+grid::grid.draw(venn.plot2)
+
+#--------------------------------------------------------------------------------------------------------------
+#ERG/MAT2A repressed compared to Pf-9366 treated upregulated.
+
+#Fisher exact test to test for the likelihood that the overlap occured by chance. Gencode used as all genes!
+EM_dn_uni <- universe_genes %in% eresEM.sig_dn$gene_id
+PF_up_uni <- universe_genes %in% eresPF.sig_up$gene_id
+
+table3 <- table(EM_dn_uni, PF_up_uni)
+table3fisher <- fisher.test(table3)
+table3fisher$p.value
+
+#Check overlap in Venn Diagram --- Entering the pvalue from above into the Title of the Venn Diagram 
+
+venn.plot3 <- venn.diagram(
+  x = list("ERG/MAT2A repressed" = eresEM.sig_dn$gene_id, "PF-9366 Up" = eresPF.sig_up$gene_id),
+  filename = NULL,
+  scaled = FALSE,
+  fill = c(NA,  NA),
+  col = c("green", "blue"),
+  lwd = 3,
+  cat.cex = 2,
+  cat.pos = c(-12,12),
+  cex = 2,
+  main = "PValue = 4.479143e-169",
+  main.cex = 2
+)
+grid::grid.draw(venn.plot3)
+#--------------------------------------------------------------------------------------------------------------
+#ERG/MAT2A repressed compared to AG-270 treated Upregulated.
+
+#Fisher exact test to test for the likelihood that the overlap occured by chance. Gencode used as all genes!
+EM_dn_uni <- universe_genes %in% eresEM.sig_dn$gene_id
+AG_up_uni <- universe_genes %in% eresAG.sig_up$gene_id
+
+table4 <- table(EM_dn_uni, AG_dn_uni)
+table4fisher <- fisher.test(table4)
+table4fisher$p.value
+
+#Check overlap in Venn Diagram --- Entering the pvalue from above into the Title of the Venn Diagram 
+
+venn.plot4 <- venn.diagram(
+  x = list("ERG/MAT2A Repressed" = eresEM.sig_dn$gene_id, "AG-270 Up" = eresAG.sig_up$gene_id),
+  filename = NULL,
+  scaled = FALSE,
+  fill = c(NA,  NA),
+  col = c("green", "blue"),
+  lwd = 3,
+  cat.cex = 2,
+  cat.pos = c(-12,12),
+  cex = 2,
+  main = "PValue = 1.291613e-48",
+  main.cex = 2
+)
+grid::grid.draw(venn.plot4)
+
+#---------------------------------------------------------------------------------------------------------------
+#EnrichR for hallmakr pathway analsysis on converged pathways
+#For this section the eres version of each results is needed as it's filtered by +/- log2FC
+
+dbs <- listEnrichrDbs()
+dbs <- c("MSigDB_Hallmark_2020")
+msigdbr_df <- msigdbr(species = "human", category = "H")
+colnames(msigdbr_df)[3] <- "ensembl_genes"
+
+
+#Merge gene lists of Samples as above
+EMup_PFdn.merge <- merge(eresEM.sig_up, eresPF.sig_dn, by = "gene_id")
+#enrichr process and barplot with ggplot
+colnames(EMup_PFdn.merge)[1] <- "ensembl_gene"
+EMup_PFdn_overlap <- merge(msigdbr_df, EMup_PFdn.merge, by = "ensembl_gene")
+EMup_PFdn_hallmark <- EMup_PFdn_overlap$source_gene
+EMup_PFdn_enriched <- enrichr(EMup_PFdn_hallmark, dbs)
+EMup_PFdn_enriched.df <- as.data.frame(EMup_PFdn_enriched)
+EMup_PFdn_enriched.df <- EMup_PFdn_enriched.df[EMup_PFdn_enriched.df$MSigDB_Hallmark_2020.Adjusted.P.value <= 0.05, ]
+EMup_PFdn_BP_enriched.df <- EMup_PFdn_enriched.df[c(1,2,3,4),c(1,8)]
+write.csv(EMup_PFdn_enriched.df, file = "EM up PF dn enrich results.csv", quote = FALSE, row.names = FALSE)
+
+ggplot(EMup_PFdn_BP_enriched.df, aes(x = reorder(MSigDB_Hallmark_2020.Term, MSigDB_Hallmark_2020.Combined.Score), y = MSigDB_Hallmark_2020.Combined.Score)) +
+  geom_bar(stat = "identity",
+           width = 0.4,
+           fill = "blue", 
+           color = "black",
+           size = 1) +
+  coord_flip() +  
+  labs(x = "",
+       y = "",
+       title = "ERG/MAT2A Induced and PF-9366 Repressed") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 22, face = "bold"),
+        panel.border = element_rect(color = "blue", fill = NA, linewidth = 2),
+        axis.text.y = element_text(size = 22, face = "bold"),
+        axis.text.x = element_text(size = 18, face = "bold"),
+        axis.title.x = element_text(size = 22,face = "bold"))
+
+#Merge
+EMup_AGdn.merge <- merge(eresEM.sig_up, eresAG.sig_dn, by = "gene_id")
+#enrichr process and barplot with ggplot
+colnames(EMup_AGdn.merge)[1] <- "ensembl_gene"
+EMup_AGdn_overlap <- merge(msigdbr_df, EMup_AGdn.merge, by = "ensembl_gene")
+EMup_AGdn_hallmark <- EMup_AGdn_overlap$source_gene
+EMup_AGdn_enriched <- enrichr(EMup_AGdn_hallmark, dbs)
+EMup_AGdn_enriched.df <- as.data.frame(EMup_AGdn_enriched)
+EMup_AGdn_enriched.df <- EMup_AGdn_enriched.df[EMup_AGdn_enriched.df$MSigDB_Hallmark_2020.Adjusted.P.value <= 0.05, ]
+EMup_AGdn_BP_enriched.df <- EMup_AGdn_enriched.df[c(1,2,4,8),c(1,8)]
+write.csv(EMup_AGdn_enriched.df, file = "EM up AG dn enrich results.csv", quote = FALSE, row.names = FALSE)
+
+ggplot(EMup_AGdn_BP_enriched.df, aes(x = reorder(MSigDB_Hallmark_2020.Term, MSigDB_Hallmark_2020.Combined.Score), y = MSigDB_Hallmark_2020.Combined.Score)) +
+  geom_bar(stat = "identity",
+           width = 0.4,
+           fill = "blue", 
+           color = "black",
+           size = 1) +
+  coord_flip() +  
+  labs(x = "",
+       y = "Combined Score",
+       title = "ERG/MAT2A Induced and AG-270 Repressed") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 22, face = "bold"),
+        panel.border = element_rect(color = "blue", fill = NA, linewidth = 2),
+        axis.text.y = element_text(size = 22, face = "bold"),
+        axis.text.x = element_text(size = 18, face = "bold"),
+        axis.title.x = element_text(size = 22,face = "bold"))
+
+#Merge
+EMdn_PFup.merge <- merge(eresEM.sig_dn, eresPF.sig_up, by = "gene_id")
+#enrichr process and barplot with ggplot
+colnames(EMdn_PFup.merge)[1] <- "ensembl_gene"
+EMdn_PFup_overlap <- merge(msigdbr_df, EMdn_PFup.merge, by = "ensembl_gene")
+EMdn_PFup_hallmark <- EMdn_PFup_overlap$source_gene
+EMdn_PFup_enriched <- enrichr(EMdn_PFup_hallmark, dbs)
+EMdn_PFup_enriched.df <- as.data.frame(EMdn_PFup_enriched)
+EMdn_PFup_enriched.df <- EMdn_PFup_enriched.df[EMdn_PFup_enriched.df$MSigDB_Hallmark_2020.Adjusted.P.value <= 0.05, ]
+EMdn_PFup_BP_enriched.df <- EMdn_PFup_enriched.df[c(2,4,19,25,27),c(1,8)]
+write.csv(EMdn_PFup_enriched.df, file = "EM dn PF up enrich results.csv", quote = FALSE, row.names = FALSE)
+
+ggplot(EMdn_PFup_BP_enriched.df, aes(x = reorder(MSigDB_Hallmark_2020.Term, MSigDB_Hallmark_2020.Combined.Score), y = MSigDB_Hallmark_2020.Combined.Score)) +
+  geom_bar(stat = "identity",
+           width = 0.4,
+           fill = "red", 
+           color = "black",
+           size = 1) +
+  coord_flip() +  
+  labs(x = "",
+       y = "",
+       title = "ERG/MAT2A Repressed and PF-9366 Induced") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 22, face = "bold"),
+        panel.border = element_rect(color = "red", fill = NA, linewidth = 2),
+        axis.text.y = element_text(size = 22, face = "bold"),
+        axis.text.x = element_text(size = 18, face = "bold"),
+        axis.title.x = element_text(size = 22,face = "bold"))
+
+#Merge
+EMdn_AGup.merge <- merge(eresEM.sig_dn, eresAG.sig_up, by = "gene_id")
+#enrichr process and barplot with ggplot
+colnames(EMdn_AGup.merge)[1] <- "ensembl_gene"
+EMdn_AGup_overlap <- merge(msigdbr_df, EMdn_AGup.merge, by = "ensembl_gene")
+EMdn_AGup_hallmark <- EMdn_AGup_overlap$source_gene
+EMdn_AGup_enriched <- enrichr(EMdn_AGup_hallmark, dbs)
+EMdn_AGup_enriched.df <- as.data.frame(EMdn_AGup_enriched)
+EMdn_AGup_enriched.df <- EMdn_AGup_enriched.df[EMdn_AGup_enriched.df$MSigDB_Hallmark_2020.Adjusted.P.value <= 0.05, ]
+EMdn_AGup_BP_enriched.df <- EMdn_AGup_enriched.df[c(1,5,9,18),c(1,8)]
+write.csv(EMdn_AGup_enriched.df, file = "EM dn AG up enrich results.csv", quote = FALSE, row.names = FALSE)
+
+ggplot(EMdn_AGup_BP_enriched.df, aes(x = reorder(MSigDB_Hallmark_2020.Term, MSigDB_Hallmark_2020.Combined.Score), y = MSigDB_Hallmark_2020.Combined.Score)) +
+  geom_bar(stat = "identity",
+           width = 0.4,
+           fill = "red", 
+           color = "black",
+           size = 1) +
+  coord_flip() +  
+  labs(x = "",
+       y = "Combined Score",
+       title = "ERG/MAT2A Repressed and AG-270 Induced") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 22, face = "bold"),
+        panel.border = element_rect(color = "red", fill = NA, linewidth = 2),
+        axis.text.y = element_text(size = 22, face = "bold"),
+        axis.text.x = element_text(size = 18, face = "bold"),
+        axis.title.x = element_text(size = 22,face = "bold"))
